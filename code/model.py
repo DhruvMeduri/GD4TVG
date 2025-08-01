@@ -4,8 +4,11 @@ from torch_geometric.nn import ChebConv
 import networkx as nx
 class TGDModel(torch.nn.Module):
     def __init__(self,input_dim, output_dim, K):
+        '''
+        K: chebyshev polynomial order
+        '''
         super().__init__()
-        self.res_blocks = torch.nn.ModuleList()
+        self.res_blocks = torch.nn.ModuleList() # residual blocks - each block has multiple chebyshev convolutions within it
         #Now I build the architecture exactly as in the paper
 
         #First the blocks
@@ -58,13 +61,13 @@ class TGDModel(torch.nn.Module):
         block16 = self.res_block_build(128,128,128)
         self.res_blocks.append(block16)
 
-        #There are some layers in the middle which I call res_layers
+        #There are some layers in the middle which I call res_layers - the residual layers provide shortcut connections - after blocks 1,4,8,14
         self.res_layer1 = ChebConv(input_dim,32,K)
         self.res_layer2 = ChebConv(32,64,K)
         self.res_layer3 = ChebConv(64,128,K)
         self.res_layer4 = ChebConv(128,128,K)
 
-        #Now to define the regression layers
+        #Now to define the regression layers - fully connected layers
         self.reg1 = torch.nn.Linear(128,256)
         self.reg2 = torch.nn.Linear(256,128)
         self.reg3 = torch.nn.Linear(128,64)
@@ -73,10 +76,10 @@ class TGDModel(torch.nn.Module):
 
     def res_block_build(self, input_dim, hidden_dim, output_dim, num_layers = 3, K = 4):
         res_block = torch.nn.ModuleList()
-        res_block.append(ChebConv(input_dim,hidden_dim,K))     
+        res_block.append(ChebConv(input_dim,hidden_dim,K)) # first layer    
         for i in range(num_layers-2):
-            res_block.append(ChebConv(hidden_dim,hidden_dim,K))   
-        res_block.append(ChebConv(hidden_dim,output_dim,K))   
+            res_block.append(ChebConv(hidden_dim,hidden_dim,K)) # middle layers except first and last (num_layers-2 )
+        res_block.append(ChebConv(hidden_dim,output_dim,K))   # last layer
 
         return res_block
     
