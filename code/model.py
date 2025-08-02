@@ -67,7 +67,7 @@ class TGDModel(torch.nn.Module):
         self.res_layer3 = ChebConv(64,128,K)
         self.res_layer4 = ChebConv(128,128,K)
 
-        #Now to define the regression layers - fully connected layers
+        #Now to define the regression layers - node -wise fully connected layers
         self.reg1 = torch.nn.Linear(128,256)
         self.reg2 = torch.nn.Linear(256,128)
         self.reg3 = torch.nn.Linear(128,64)
