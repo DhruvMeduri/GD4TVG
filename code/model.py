@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch_geometric.nn import ChebConv
-import networkx as nx
+
 class TGDModel(torch.nn.Module):
     def __init__(self,input_dim, output_dim, K):
         '''
@@ -85,24 +85,26 @@ class TGDModel(torch.nn.Module):
     
     def forward_block(self,block,input, edge_index, input_res):
         x = input
+        edge_weight = torch.ones(edge_index.size(1), dtype=torch.float, device=edge_index.device)
         for layer in block:
-            x = layer(x, edge_index)
+            x = layer(x, edge_index,edge_weight)
             x = F.relu(x)
         
         return F.relu(x+input_res) #Ensure the input_res dim is same as output dim
     
     def forward(self,input,edge_index):
         x = input
+        edge_weight = torch.ones(edge_index.size(1), dtype=torch.float, device=edge_index.device)
         count = 0
         for block in self.res_blocks:
             if count == 0:
-                x = self.forward_block(block,x,edge_index,self.res_layer1(x,edge_index))
+                x = self.forward_block(block,x,edge_index,self.res_layer1(x,edge_index,edge_weight))
             elif  count == 3:
-                x = self.forward_block(block,x,edge_index,self.res_layer2(x,edge_index))
+                x = self.forward_block(block,x,edge_index,self.res_layer2(x,edge_index,edge_weight))
             elif  count == 7:
-                x = self.forward_block(block,x,edge_index,self.res_layer3(x,edge_index))
+                x = self.forward_block(block,x,edge_index,self.res_layer3(x,edge_index,edge_weight))
             elif  count == 13:
-                x = self.forward_block(block,x,edge_index,self.res_layer4(x,edge_index))
+                x = self.forward_block(block,x,edge_index,self.res_layer4(x,edge_index,edge_weight))
             else:
                 x = self.forward_block(block,x,edge_index,x)
             
@@ -119,11 +121,11 @@ class TGDModel(torch.nn.Module):
         return x
     
 #Just testing if the code works
-test_model = TGDModel(2,2,4)
-x = torch.tensor([[1,2],[2,3],[3,4]],dtype=torch.float)
-edge_index = torch.tensor([[0,1,2],[1,2,0]],dtype=torch.long)
-out = test_model(x,edge_index)
-print(out)
+# test_model = TGDModel(2,2,4)
+# x = torch.tensor([[1,2],[2,3],[3,4]],dtype=torch.float)
+# edge_index = torch.tensor([[0,1,2],[1,2,0]],dtype=torch.long)
+# out = test_model(x,edge_index)
+# print(out)
 
 
 

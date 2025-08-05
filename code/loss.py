@@ -5,7 +5,7 @@ def tsnet(p_input,pred): #takes as input the processed_input and pred (num_nodes
     l_c = 1
     l_kl = 1
     l_r = 1
-    r = 0.000001
+    r = 0.00001
 
     #First compute the compression term
     L_c = (torch.linalg.norm(pred)**2)/(2*num_nodes)
@@ -16,7 +16,8 @@ def tsnet(p_input,pred): #takes as input the processed_input and pred (num_nodes
         for j in range(num_nodes):
             euc_dis = torch.linalg.norm(pred[i]-pred[j])
             graph_dis = p_input['metric'][i][j]
-            L_kl = L_kl + graph_dis*torch.log(graph_dis/euc_dis)
+            L_kl = L_kl + graph_dis*torch.log(graph_dis/(euc_dis+r) + r)
+    
     
     #Compute the repulsion term
     euc_mat = torch.cdist(pred,pred) #num_nodes x num_nodes
