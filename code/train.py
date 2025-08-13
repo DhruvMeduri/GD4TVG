@@ -6,55 +6,68 @@ from model import TGDModel
 from loss import tsnet
 import networkx as nx
 import pickle
+from torch_geometric.loader import DataLoader
+import os
+import shutil
 
+#Check for GPU
+device = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
+print(device)
+# device = 'cpu'
 #First we create the training dataset
-ensemblesize=1000
+ensemblesize = 1000
+batch_size = 32
+max_size = 300
 #Setup the input
-data = [] #This must be the list of graph-daddies
+print("PROCESSING DATA")
+input_data = [] #This must be the list of graph-daddies
 for i in range(ensemblesize):
-    G = parse_daddy('../graphdad/graph_'+str(i)+'.pkl')
-    data.append(G)
+    print(i)
+    G, is_connected, num_real_nodes = parse_daddy('../graphdad/graph_'+str(i)+'.pkl', max_size)
+    if is_connected:
+        temp = generate_input(G, num_real_nodes)
+        input_data.append(temp)
 
+ensemblesize = len(input_data)
+train_loader = DataLoader(input_data, batch_size=batch_size, shuffle=True)
 
 #Foor the model
 model = TGDModel(2,2,4)
 model.train()
-optimizer = optim.Adam(model.parameters(),lr=1e-3)
-
-#Check for GPU
-device = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
+optimizer = optim.Adam(model.parameters(),lr=1e-4)
 model.to(device)
+
+save_dir = '../saved_models_1_0_1/'
+if(os.path.exists(save_dir)):
+    shutil.rmtree(save_dir)
+os.mkdir(save_dir)
+
 
 #Now coming to the training loop
 training_loss = []
-for epoch in range(100):
-    for graph in data[:900]:
-        p_input = generate_input(graph)
-        p_input['features'] = p_input['features'].to(device)
-        p_input['edge_index'] = p_input['edge_index'].to(device)
+for epoch in range(50):
+    batch_count = 0
+    plot_loss = 0
+    for batch in train_loader:
+        batch = batch.to(device)
         optimizer.zero_grad()
-        pred = model(p_input['features'], p_input['edge_index'])
-        loss = tsnet(p_input,pred)
+        pred = model(batch.x, batch.edge_index)
+        loss = tsnet(batch, pred)
+        plot_loss = plot_loss + loss.detach()
+        print(loss.item())
         loss.backward()
         optimizer.step()
-        #print("LOSS: ",loss)
+        print("BATCH: ",batch_count, " EPOCH: ",epoch)
+        batch_count = batch_count + 1
+        batch = batch.to("cpu")
 
-    #For computing the loss after every epoch on the validation dataset
-    plot_loss = 0
-    for graph in data[900:1000]:
-        p_input = generate_input(graph)
-        p_input['features'] = p_input['features'].to(device)
-        p_input['edge_index'] = p_input['edge_index'].to(device)
-        pred = model(p_input['features'], p_input['edge_index'])
-        plot_loss = plot_loss + tsnet(p_input,pred)
-    print("EPOCH: ",epoch," LOSS: ",plot_loss/100)
-    training_loss.append(plot_loss/100)
-
-    if epoch%5==0:
-        torch.save(model.state_dict(), '../saved_models/model_' + str(epoch) + '.pth')
+    print("EPOCH: ",epoch," LOSS: ",plot_loss/batch_count)
+    training_loss.append(plot_loss/batch_count)
+    if epoch%2==0:
+        torch.save(model.state_dict(), save_dir + 'model_' + str(epoch) + '.pth')
 
 # Save list to a .pkl file
-with open("../saved_models/training_loss.pkl", "wb") as f:
+with open(save_dir + "training_loss.pkl", "wb") as f:
     pickle.dump(training_loss, f)
 
 

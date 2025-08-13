@@ -6,13 +6,13 @@ import networkx as nx
 import torch
 import pickle 
 import random
+from torch_geometric.data import Data   
 
-def generate_input(G_daddy):
+def generate_input(G_daddy, num_real_nodes):
 
     data = from_networkx(G_daddy)
     node_features = data.x[:, :-1].float() #Removes the node-timestep
     edge_index = data.edge_index
-    weights = data.weight
 
     #Now apply floyd-warshall
     dist_dic = nx.floyd_warshall(G_daddy,weight='weight')
@@ -33,11 +33,11 @@ def generate_input(G_daddy):
                 time_matrix[i][j] = 1
 
     
-    return {'features':node_features, 'edge_index':edge_index, 'weights':weights, 'metric':DM, 'time_step':time_matrix}
+    return Data(x = node_features, edge_index = edge_index, metric = DM, time = time_matrix, num_real_nodes = torch.tensor([num_real_nodes]))
 
 
 
-def parse_daddy(graphname):
+def parse_daddy(graphname,max_size):
     with open(graphname, 'rb') as f:
         data = pickle.load(f)
 
@@ -48,9 +48,15 @@ def parse_daddy(graphname):
         else:
             data[u][v]['weight']=1
 
+    is_connected = nx.is_connected(data)
+
     count = 0
     for u in data.nodes():
         data.nodes[u]['x'] = torch.tensor([count,random.randint(1, 1000),float(u.split('_')[0])])
         count = count + 1
     
-    return data
+    for i in range(count,max_size):
+        feature = torch.tensor([i, random.randint(1, 1000), -1])
+        data.add_node(i, x=feature)
+    
+    return data, is_connected, count
